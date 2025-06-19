@@ -1,9 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
+import { useAction } from "next-safe-action/hooks";
 import { useForm } from "react-hook-form";
 import { NumericFormat } from "react-number-format";
+import { toast } from "sonner";
 import z from "zod";
 
+import { upsertDoctor } from "@/actions/create-clinic/upsert-doctor";
 import { Button } from "@/components/ui/button";
 import {
   DialogContent,
@@ -34,7 +37,7 @@ import { medicalSpecialties } from "../_constants";
 const formShema = z
   .object({
     name: z.string().trim().min(1, { message: "Nome é obrigatório" }),
-    specialty: z
+    speciality: z
       .string()
       .trim()
       .min(1, { message: "Especialidade é obrigatória" }),
@@ -75,12 +78,16 @@ const formShema = z
     },
   );
 
-const UpsertDoctorForm = () => {
+interface UpsertDoctorFormProps {
+  onSuccess?: () => void;
+}
+
+const UpsertDoctorForm = ({ onSuccess }: UpsertDoctorFormProps) => {
   const form = useForm<z.infer<typeof formShema>>({
     resolver: zodResolver(formShema),
     defaultValues: {
       name: "",
-      specialty: "",
+      speciality: "",
       appointmentPrice: 0,
       availableToWeekday: "5",
       availableFromWeekday: "1",
@@ -88,9 +95,23 @@ const UpsertDoctorForm = () => {
       availableToTime: "",
     },
   });
+  const upsertDoctorAction = useAction(upsertDoctor, {
+    onSuccess: () => {
+      toast.success("Médico cadastrado com sucesso");
+      onSuccess?.();
+    },
+    onError: () => {
+      toast.error("Erro ao cadastrar médico");
+    },
+  });
 
   const onSubmit = (values: z.infer<typeof formShema>) => {
-    console.log(values);
+    upsertDoctorAction.execute({
+      ...values,
+      availableFromWeekday: parseInt(values.availableFromWeekday),
+      availableToWeekday: parseInt(values.availableToWeekday),
+      appointmentPriceInCents: values.appointmentPrice * 100,
+    });
   };
 
   return (
@@ -118,7 +139,7 @@ const UpsertDoctorForm = () => {
           />
           <FormField
             control={form.control}
-            name="specialty"
+            name="speciality"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Especialidade</FormLabel>
@@ -132,9 +153,12 @@ const UpsertDoctorForm = () => {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {medicalSpecialties.map((specialty) => (
-                      <SelectItem key={specialty.value} value={specialty.value}>
-                        {specialty.label}
+                    {medicalSpecialties.map((speciality) => (
+                      <SelectItem
+                        key={speciality.value}
+                        value={speciality.value}
+                      >
+                        {speciality.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -370,7 +394,9 @@ const UpsertDoctorForm = () => {
           />
 
           <DialogFooter>
-            <Button type="submit">Salvar</Button>
+            <Button type="submit" disabled={upsertDoctorAction.isPending}>
+              {upsertDoctorAction.isPending ? "Salvando..." : "Salvar"}
+            </Button>
           </DialogFooter>
         </form>
       </Form>
